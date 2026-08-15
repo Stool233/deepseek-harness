@@ -1086,50 +1086,50 @@ export class PersistenceCoordinator<TornMarker = unknown> {
   private installWritePath(): void {
     const ctx = this.ctx
 
-    // Register the disposer BEFORE the listeners. Cordis tears effects down in
-    // reverse registration order, so event admission closes before this final
-    // drain reaches quiescence and closes the backend.
-    ctx.effect(() => async () => {
-      let disposeError: unknown
-      try {
-        const errors = await settledErrors([...this.live.keys()].map(session => this.flush(session)))
-        while (this.chains.size > 0) await Promise.allSettled([...this.chains.values()])
-        if (errors.length > 0) {
-          throw new AggregateError(errors, `${this.backend.name} dispose failed`)
-        }
-      } catch (error: unknown) {
-        disposeError = error
-        throw error
-      } finally {
+    // One effect accumulator owns admission and backend closure. Its inverse
+    // order removes every listener before the final drain begins.
+    ctx.effect(() => [
+      async () => {
+        let disposeError: unknown
         try {
-          await this.backend.close?.()
-        } catch (closeError: unknown) {
-          // A close failure can only add teardown context; keep the already-
-          // captured drain AggregateError as the primary failure rather than
-          // masking it. Only surface the close error if the drain succeeded.
-          /* v8 ignore start -- close failure racing disposal is a defensive teardown edge */
-          if (disposeError === undefined) throw closeError
-          /* v8 ignore stop */
+          // A failed retirement may still own the write controller's shared
+          // barrier. Let it settle before retrying its retained batch.
+          await Promise.allSettled([...this.retirements.values()])
+          const errors = await settledErrors([...this.live.keys()].map(session => this.flush(session)))
+          while (this.chains.size > 0) await Promise.allSettled([...this.chains.values()])
+          if (errors.length > 0) {
+            throw new AggregateError(errors, `${this.backend.name} dispose failed`)
+          }
+        } catch (error: unknown) {
+          disposeError = error
+          throw error
+        } finally {
+          try {
+            await this.backend.close?.()
+          } catch (closeError: unknown) {
+            // A close failure can only add teardown context; keep the already-
+            // captured drain AggregateError as the primary failure rather than
+            // masking it. Only surface the close error if the drain succeeded.
+            /* v8 ignore start -- close failure racing disposal is a defensive teardown edge */
+            if (disposeError === undefined) throw closeError
+            /* v8 ignore stop */
+          }
         }
-      }
-    }, `${this.backend.name} write path`)
-
-    // Capture the header on creation and persist a fork's seed once.
-    ctx.on('session/created', (session) => {
-      void this.initFor(session)
-    })
-
-    // Keep a persistence-owned copy of each frozen event and start its bounded window.
-    ctx.on('session/event', (session, event) => {
-      const live = this.initFor(session)
-      live.writes.enqueue(event)
-    })
-
-    // Callers use flush as the immediate durability barrier for buffered writes.
-    ctx.on('session/flush', session => this.flush(session))
-
-    // Session disposal is observe-only, so retirement contains its own failure.
-    ctx.on('session/disposed', (session) => { this.retire(session) })
+      },
+      // Capture the header on creation and persist a fork's seed once.
+      ctx.on('session/created', (session) => {
+        void this.initFor(session)
+      }),
+      // Keep a persistence-owned copy of each frozen event and start its bounded window.
+      ctx.on('session/event', (session, event) => {
+        const live = this.initFor(session)
+        live.writes.enqueue(event)
+      }),
+      // Callers use flush as the immediate durability barrier for buffered writes.
+      ctx.on('session/flush', session => this.flush(session)),
+      // Session disposal is observe-only, so retirement contains its own failure.
+      ctx.on('session/disposed', (session) => { this.retire(session) }),
+    ], `${this.backend.name} write path`)
 
     // HMR: a hot reload does not replay session/created, so seed existing live
     // sessions (mirrors dsh-invariants).

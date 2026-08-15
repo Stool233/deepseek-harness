@@ -1,7 +1,7 @@
 /** Run the pinned Cordis paper kit against the vendored implementation. */
 import assert from 'node:assert/strict'
-import { access, readFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { access, readFile, readdir } from 'node:fs/promises'
+import { isAbsolute, join, resolve } from 'node:path'
 import { execa } from 'execa'
 
 interface ScenarioReport {
@@ -22,8 +22,61 @@ interface ConformanceReport {
   readonly traceMatched: unknown
 }
 
+const windowsAbsolute = /^(?:[A-Za-z]:[\\/]|\\\\)/
+const embeddedUnixAbsolute = /(?:^|[:=;\s])\/(?!\/)/
+const embeddedWindowsAbsolute = /(?:^|[=;\s])(?:[A-Za-z]:[\\/]|\\\\)/
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function parseJson(value: string): unknown {
+  return JSON.parse(value) as unknown
+}
+
+function absolutePathAt(value: unknown, location = '$'): string | undefined {
+  if (typeof value === 'string') {
+    return isAbsolute(value) || windowsAbsolute.test(value) || embeddedUnixAbsolute.test(value) || embeddedWindowsAbsolute.test(value)
+      ? location
+      : undefined
+  }
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index++) {
+      const found = absolutePathAt(value[index], `${location}[${index}]`)
+      if (found) return found
+    }
+    return undefined
+  }
+  if (isRecord(value)) {
+    for (const [key, item] of Object.entries(value)) {
+      const found = absolutePathAt(item, `${location}.${key}`)
+      if (found) return found
+    }
+  }
+  return undefined
+}
+
+async function serializedEvidenceFiles(directory: string): Promise<string[]> {
+  const files: string[] = []
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name)
+    if (entry.isDirectory()) files.push(...await serializedEvidenceFiles(path))
+    else if (entry.isFile() && (path.endsWith('.json') || path.endsWith('.ndjson'))) files.push(path)
+  }
+  return files.sort()
+}
+
+async function assertPortableEvidence(directory: string): Promise<void> {
+  const files = await serializedEvidenceFiles(directory)
+  assert.ok(files.length > 0, 'Cordis conformance produced no serialized evidence')
+  for (const path of files) {
+    const content = await readFile(path, 'utf8')
+    const value: unknown = path.endsWith('.ndjson')
+      ? content.trim().split('\n').filter(Boolean).map(parseJson)
+      : parseJson(content)
+    const found = absolutePathAt(value)
+    assert.equal(found, undefined, `${path} contains an absolute path at ${found}`)
+  }
 }
 
 function readConformanceReport(value: unknown): ConformanceReport {
@@ -78,6 +131,7 @@ const common = [
   '--cache', cache,
   '--implementation-root', implementationRoot,
   '--implementation-name', 'deepseek-harness-vendored-cordis',
+  '--implementation-role', 'vendored',
   '--revision', revision,
   '--scenario-module', scenarioModule,
   '--trace-runtime-root', repository,
@@ -95,6 +149,8 @@ await execa('tsx', [join(repository, 'scripts/verify-cordis-paper-observation.ts
   cwd: repository,
   stdio: 'inherit',
 })
+
+await assertPortableEvidence(output)
 
 const report = readConformanceReport(JSON.parse(await readFile(join(output, 'conformance-report.json'), 'utf8')))
 assert.equal(report.traceMatched, 'pass', 'aggregate TraceMatched did not pass')

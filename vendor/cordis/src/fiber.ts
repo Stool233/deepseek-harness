@@ -266,8 +266,15 @@ export class Fiber {
         collect,
       }
 
+      let removeRuntime!: () => void
       this.dispose = parent.fiber.effect(() => {
         const remove = runtime.fibers.push(this)
+        removeRuntime = () => {
+          remove()
+          if (!runtime.fibers.length && this.ctx.registry.get(runtime.callback) === runtime) {
+            this.ctx.registry.delete(runtime.callback)
+          }
+        }
         emitCordisPaperTrace(this.ctx, {
           kind: 'fiber-created',
           fiber: this,
@@ -276,12 +283,6 @@ export class Fiber {
         return async () => {
           this.uid = null
           emitPluginDisposed(this.context, this)
-          if (this.ctx.registry.has(runtime.callback)) {
-            remove()
-            if (!runtime.fibers.length) {
-              this.ctx.registry.delete(runtime.callback)
-            }
-          }
           this._setEpoch(INACTIVE)
           // A PENDING fiber can already own effects registered by an
           // internal/plugin observer. Its epoch is still INACTIVE, so
@@ -303,6 +304,7 @@ export class Fiber {
           while (this.inertia) {
             await this.inertia
           }
+          removeRuntime()
           emitCordisPaperTrace(this.ctx, { kind: 'fiber-removed', fiber: this })
         }
       }, 'ctx.plugin()')
@@ -314,6 +316,7 @@ export class Fiber {
       } catch (error) {
         // Publication failed synchronously. The disposer removes the child
         // from both the parent and runtime before control escapes.
+        removeRuntime()
         void Promise.resolve(this.dispose()).catch(reason => this.ctx.logger.error(reason))
         throw error
       }
@@ -726,7 +729,8 @@ export class Fiber {
     if (this.inertia) return
     if (beginsReload) {
       this._updateState(() => {
-        this.inertia = Promise.resolve().then(() => this._reload())
+        const epoch = this._runner.epoch
+        this.inertia = Promise.resolve().then(() => this._reload(epoch))
         return FiberState.LOADING
       })
     } else {
@@ -739,7 +743,7 @@ export class Fiber {
     return this.runtime ? resolveConfig(this.runtime, config) : config
   }
 
-  private async _reload() {
+  private async _reload(oldEpoch: string) {
     const previous: Impl[] = this.store ? Object.values(this.store) : []
     this.store = { ...this._store }
     emitCordisPaperTrace(this.ctx, {
@@ -748,7 +752,6 @@ export class Fiber {
       previous,
       current: Object.values(this.store),
     })
-    const oldEpoch = this._runner.epoch
     try {
       await Promise.resolve()
       // A disposer queued before this checkpoint may already have invalidated
@@ -778,8 +781,10 @@ export class Fiber {
   private async _unload() {
     const dependents = [...this._pendingDependents]
     this._pendingDependents.clear()
-    await Promise.allSettled(dependents.map(fiber => fiber.await()))
-    for (const dispose of this._disposables.clear()) {
+    if (dependents.length) {
+      await Promise.allSettled(dependents.map(fiber => fiber.await()))
+    }
+    await Promise.all(this._disposables.clear().map(async (dispose) => {
       try {
         await composeError(async (info) => {
           await Promise.resolve()
@@ -789,7 +794,7 @@ export class Fiber {
       } catch (reason) {
         this.ctx.logger.error(reason)
       }
-    }
+    }))
     const previous: Impl[] = this.store ? Object.values(this.store) : []
     this.store = undefined
     emitCordisPaperTrace(this.ctx, {
@@ -802,7 +807,8 @@ export class Fiber {
       if (this._runner.epoch === INACTIVE) {
         this.inertia = undefined
       } else {
-        this.inertia = Promise.resolve().then(() => this._reload())
+        const epoch = this._runner.epoch
+        this.inertia = Promise.resolve().then(() => this._reload(epoch))
         return FiberState.LOADING
       }
     })

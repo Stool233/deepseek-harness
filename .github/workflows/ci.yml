@@ -187,8 +187,8 @@ jobs:
 
       - uses: actions/checkout@v6
         with:
-          repository: cordiverse/cordis
-          ref: ce854b593eae4d2ca6717945f26b85eb5f1ee264
+          repository: Stool233/cordis
+          ref: a0f8baa9b9abfee73292c525ebcd46103b175b0d
           path: .cordis-formal-kit
           persist-credentials: false
 
