@@ -175,6 +175,52 @@ jobs:
       - name: Run exhaustive coverage
         run: pnpm run check:ci:coverage
 
+  cordis-paper:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    name: Cordis paper conformance
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/checkout@v6
+        with:
+          repository: cordiverse/cordis
+          ref: ce854b593eae4d2ca6717945f26b85eb5f1ee264
+          path: .cordis-formal-kit
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+        with:
+          dest: ${{ runner.temp }}/setup-pnpm
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install (immutable)
+        run: pnpm install --frozen-lockfile
+
+      - name: Check vendored Cordis against the paper model
+        env:
+          CORDIS_FORMAL_ROOT: ${{ github.workspace }}/.cordis-formal-kit
+        run: pnpm test:cordis-paper
+
+      - name: Upload conformance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cordis-paper-conformance
+          path: .artifacts/cordis-paper/
+          if-no-files-found: warn
+
   node-24-consumers:
     if: github.event_name == 'pull_request'
     runs-on: >-
@@ -925,7 +971,7 @@ jobs:
           && github.event.pull_request.user.login != 'dependabot[bot]'
           && fromJSON('["self-hosted", "linux", "x64", "vm-backup"]')
           || 'ubuntu-latest' }}
-    needs: [node-24, node-24-coverage, node-24-consumers, node-compat, python-sdk, python-runtime, windows]
+    needs: [node-24, node-24-coverage, node-24-consumers, cordis-paper, node-compat, python-sdk, python-runtime, windows]
     if: always() && github.event_name == 'pull_request'
     steps:
       - name: Fail if any needed job did not succeed

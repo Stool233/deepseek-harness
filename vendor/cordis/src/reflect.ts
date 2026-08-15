@@ -3,6 +3,7 @@ import type { Dict } from '@deepseek-ai/cosmokit'
 import { Context } from './context.ts'
 import { getTraceable, symbols, withProps } from './utils.ts'
 import { Fiber, FiberState } from './fiber.ts'
+import { emitCordisPaperTrace } from './formal-trace.ts'
 
 declare module './context.ts' {
   interface Context {
@@ -291,15 +292,33 @@ export class ReflectService {
       }
       this.store[key] = impl
       this.ctx.fiber.store![name] = impl
+      emitCordisPaperTrace(this.ctx, {
+        kind: 'service-provided',
+        fiber: this.ctx.fiber,
+        implementation: impl,
+        realm: key,
+      })
       if (this.ctx.fiber.state === FiberState.ACTIVE) {
         this.notify([name])
       }
       return async () => {
+        emitCordisPaperTrace(this.ctx, {
+          kind: 'service-withdrawing',
+          fiber: this.ctx.fiber,
+          implementation: impl,
+          realm: key,
+        })
         delete this.store[key]
         const fibers = this.notify([name])
         await Promise.allSettled(fibers.map(fiber => fiber.await()))
         // ensure self access before dependencies cleanup
         delete this.ctx.fiber.store![name]
+        emitCordisPaperTrace(this.ctx, {
+          kind: 'service-withdrawn',
+          fiber: this.ctx.fiber,
+          implementation: impl,
+          realm: key,
+        })
       }
     }, `ctx.provide(${JSON.stringify(name)})`)
   }
