@@ -208,6 +208,7 @@ export class Fiber {
   private _error: any
   private _runner: EffectRunner<string>
   private _store: Dict<Impl> = Object.create(null)
+  private _pendingDependents = new Set<Fiber>()
 
   /**
    * Create a fiber. Plugin authors normally obtain fibers from `ctx.plugin()`
@@ -262,17 +263,18 @@ export class Fiber {
         collect,
       }
 
+      let removeRuntime!: () => void
       this.dispose = parent.fiber.effect(() => {
         const remove = runtime.fibers.push(this)
+        removeRuntime = () => {
+          remove()
+          if (!runtime.fibers.length && this.ctx.registry.get(runtime.callback) === runtime) {
+            this.ctx.registry.delete(runtime.callback)
+          }
+        }
         return async () => {
           this.uid = null
           emitPluginDisposed(this.context, this)
-          if (this.ctx.registry.has(runtime.callback)) {
-            remove()
-            if (!runtime.fibers.length) {
-              this.ctx.registry.delete(runtime.callback)
-            }
-          }
           this._setEpoch(INACTIVE)
           // A PENDING fiber can already own effects registered by an
           // internal/plugin observer. Its epoch is still INACTIVE, so
@@ -293,6 +295,7 @@ export class Fiber {
           while (this.inertia) {
             await this.inertia
           }
+          removeRuntime()
         }
       }, 'ctx.plugin()')
 
@@ -303,6 +306,7 @@ export class Fiber {
       } catch (error) {
         // Publication failed synchronously. The disposer removes the child
         // from both the parent and runtime before control escapes.
+        removeRuntime()
         void Promise.resolve(this.dispose()).catch(reason => this.ctx.logger.error(reason))
         throw error
       }
@@ -590,7 +594,12 @@ export class Fiber {
     for (const key of Reflect.ownKeys(this.ctx.reflect.store)) {
       const impl = this.ctx.reflect.store[key as symbol]
       if (impl.fiber !== this) continue
-      this.ctx.reflect.notify([impl.name])
+      const fibers = this.ctx.reflect.notify([impl.name])
+      if (oldState === FiberState.ACTIVE && this.state !== FiberState.ACTIVE) {
+        for (const fiber of fibers) {
+          if (fiber !== this) this._pendingDependents.add(fiber)
+        }
+      }
     }
   }
 
@@ -625,17 +634,21 @@ export class Fiber {
   private _setEpoch(epoch: string) {
     const oldEpoch = this._runner.epoch
     if (epoch === oldEpoch) return
+    const beginsReload = epoch !== INACTIVE && oldEpoch === INACTIVE
+    if (!this.inertia && !beginsReload) {
+      this._updateState(() => FiberState.UNLOADING)
+    }
     this._runner.epoch = epoch
     if (this.inertia) return
-    this._updateState(() => {
-      if (epoch !== INACTIVE && oldEpoch === INACTIVE) {
-        this.inertia = this._reload()
+    if (beginsReload) {
+      this._updateState(() => {
+        const epoch = this._runner.epoch
+        this.inertia = Promise.resolve().then(() => this._reload(epoch))
         return FiberState.LOADING
-      } else {
-        this.inertia = this._unload()
-        return FiberState.UNLOADING
-      }
-    })
+      })
+    } else {
+      this.inertia = this._unload()
+    }
   }
 
   private _resolveConfig(config: any) {
@@ -643,14 +656,11 @@ export class Fiber {
     return this.runtime ? resolveConfig(this.runtime, config) : config
   }
 
-  private async _reload() {
+  private async _reload(oldEpoch: string) {
     this.store = { ...this._store }
-    const oldEpoch = this._runner.epoch
     try {
-      await Promise.resolve()
-      // A disposer queued before this checkpoint may already have invalidated
-      // the load. Do not run plugin code for a stale epoch; the state update
-      // below will drain any effects collected while the fiber was PENDING.
+      // The deferred call into _reload is the cancellation checkpoint. Do not
+      // run plugin code after a disposer has invalidated this activation.
       if (this._runner.epoch === oldEpoch) {
         this.config = this._resolveConfig(this._config)
         await this._execute(this._runner)
@@ -673,6 +683,11 @@ export class Fiber {
   }
 
   private async _unload() {
+    const dependents = [...this._pendingDependents]
+    this._pendingDependents.clear()
+    if (dependents.length) {
+      await Promise.allSettled(dependents.map(fiber => fiber.await()))
+    }
     await Promise.all(this._disposables.clear().map(async (dispose) => {
       try {
         await composeError(async (info) => {
@@ -689,7 +704,8 @@ export class Fiber {
       if (this._runner.epoch === INACTIVE) {
         this.inertia = undefined
       } else {
-        this.inertia = this._reload()
+        const epoch = this._runner.epoch
+        this.inertia = Promise.resolve().then(() => this._reload(epoch))
         return FiberState.LOADING
       }
     })
