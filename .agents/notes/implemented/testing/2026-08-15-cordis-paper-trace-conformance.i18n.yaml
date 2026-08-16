@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/testing/2026-08-15-cordis-paper-trace-conformance.md
-2026-08-15-cordis-paper-trace-conformance.md: 5d0df582d74e9d98c42aa12c1c4b7979c095b060
-2026-08-15-cordis-paper-trace-conformance.zh.md: b5f5377a6a7b2c5080190c5fe5bd66a82b9896e6
+2026-08-15-cordis-paper-trace-conformance.md: 7a0c20f2677c4ef0c8ec7129e19c556972684544
+2026-08-15-cordis-paper-trace-conformance.zh.md: 05a9336a7d2f526b05f3e5cbc9c7b03b2b455819
