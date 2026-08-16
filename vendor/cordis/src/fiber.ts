@@ -5,6 +5,7 @@ import type { Plugin } from './registry.ts'
 import { buildOuterStack, composeError, DisposableList, getTraceable, isConstructor, isObject, symbols } from './utils.ts'
 import type { Impl } from './reflect.ts'
 import type { StandardSchemaV1 } from '@standard-schema/spec'
+import { emitCordisPaperTrace } from './formal-trace.ts'
 
 declare module './context.ts' {
   export interface Context extends Pick<Fiber, 'effect'> {
@@ -174,6 +175,7 @@ export namespace CordisError {
 }
 
 const INACTIVE = '__INACTIVE__'
+const inverseRoles = new WeakMap<Disposable, 'effect' | 'structural'>()
 
 /**
  * Runtime instance of one plugin application.
@@ -208,6 +210,7 @@ export class Fiber {
   private _error: any
   private _runner: EffectRunner<string>
   private _store: Dict<Impl> = Object.create(null)
+  private _target: Dict<Impl> = Object.create(null)
 
   /**
    * Create a fiber. Plugin authors normally obtain fibers from `ctx.plugin()`
@@ -264,6 +267,11 @@ export class Fiber {
 
       this.dispose = parent.fiber.effect(() => {
         const remove = runtime.fibers.push(this)
+        emitCordisPaperTrace(this.ctx, {
+          kind: 'fiber-created',
+          fiber: this,
+          parent: parent.fiber,
+        })
         return async () => {
           this.uid = null
           emitPluginDisposed(this.context, this)
@@ -284,6 +292,7 @@ export class Fiber {
               return FiberState.UNLOADING
             })
           }
+          emitCordisPaperTrace(this.ctx, { kind: 'fiber-retired', fiber: this })
           // `this.inertia` itself should never reject — both `_reload` and
           // `_unload` swallow their own work errors via `ctx.logger.error`.
           // If it *does* reject, the only remaining cause is the logger
@@ -293,6 +302,7 @@ export class Fiber {
           while (this.inertia) {
             await this.inertia
           }
+          emitCordisPaperTrace(this.ctx, { kind: 'fiber-removed', fiber: this })
         }
       }, 'ctx.plugin()')
 
@@ -355,29 +365,48 @@ export class Fiber {
 
   private _execute<T>(runner: EffectRunner<T>) {
     const oldEpoch = runner.epoch
-    return composeError((info) => {
+    const execute = () => composeError((info) => {
       const safeCollect = (dispose: void | Disposable) => {
         if (typeof dispose === 'function') {
+          if (!inverseRoles.has(dispose)) inverseRoles.set(dispose, 'effect')
           runner.collect(dispose)
+          if (inverseRoles.get(dispose) !== 'structural') {
+            emitCordisPaperTrace(this.ctx, {
+              kind: 'inverse-collected',
+              fiber: this,
+              iterator: runner,
+              inverse: dispose,
+            })
+          }
         } else if (!isNullable(dispose)) {
           throw new TypeError('Invalid effect')
         }
       }
+      const land = (done: boolean, dispose?: void | Disposable) => {
+        safeCollect(dispose)
+        emitCordisPaperTrace(this.ctx, {
+          kind: 'iteration-landed',
+          fiber: this,
+          iterator: runner,
+          done,
+          inverse: typeof dispose === 'function' && inverseRoles.get(dispose) !== 'structural' ? dispose : undefined,
+        })
+      }
       const effect: Effect = runner.execute.call(this)
       if (typeof effect === 'function') {
-        return runner.collect(effect)
+        return land(true, effect)
       } else if (isNullable(effect)) {
-        // return
+        return land(true)
       } else if (!isObject(effect)) {
         throw new TypeError('Invalid effect')
       } else if ('then' in effect) {
-        return effect.then(safeCollect)
+        return effect.then(dispose => land(true, dispose))
       } else if (Symbol.iterator in effect) {
         info.error = new Error()
         const iter = effect[Symbol.iterator]()
         while (true) {
           const result = iter.next()
-          safeCollect(result.value)
+          land(result.done === true, result.value)
           if (result.done) return
         }
       } else if (Symbol.asyncIterator in effect) {
@@ -389,7 +418,7 @@ export class Fiber {
           while (true) {
             if (runner.epoch !== oldEpoch) return
             const result = await iter.next()
-            safeCollect(result.value)
+            land(result.done === true, result.value)
             if (result.done) return
           }
         })()
@@ -397,6 +426,48 @@ export class Fiber {
         throw new TypeError('Invalid effect')
       }
     }, runner.getOuterStack)
+    try {
+      const result = execute()
+      if (!isObject(result) || !('then' in result)) return result
+      return Promise.resolve(result).catch((reason) => {
+        emitCordisPaperTrace(this.ctx, {
+          kind: 'iteration-raised',
+          fiber: this,
+          iterator: runner,
+          reason,
+        })
+        throw reason
+      })
+    } catch (reason) {
+      emitCordisPaperTrace(this.ctx, {
+        kind: 'iteration-raised',
+        fiber: this,
+        iterator: runner,
+        reason,
+      })
+      throw reason
+    }
+  }
+
+  private _runInverse(dispose: Disposable) {
+    const structural = inverseRoles.get(dispose) === 'structural'
+    emitCordisPaperTrace(this.ctx, { kind: 'inverse-started', fiber: this, inverse: dispose, structural })
+    try {
+      const result = runDisposable(dispose)
+      if (!isObject(result) || !('then' in result)) {
+        emitCordisPaperTrace(this.ctx, { kind: 'inverse-finished', fiber: this, inverse: dispose, structural, failed: false })
+        return result
+      }
+      return Promise.resolve(result).then(() => {
+        emitCordisPaperTrace(this.ctx, { kind: 'inverse-finished', fiber: this, inverse: dispose, structural, failed: false })
+      }, (reason) => {
+        emitCordisPaperTrace(this.ctx, { kind: 'inverse-finished', fiber: this, inverse: dispose, structural, failed: true })
+        throw reason
+      })
+    } catch (reason) {
+      emitCordisPaperTrace(this.ctx, { kind: 'inverse-finished', fiber: this, inverse: dispose, structural, failed: true })
+      throw reason
+    }
   }
 
   /**
@@ -430,9 +501,9 @@ export class Fiber {
       let task!: void | Promise<void>
       for (const disposable of disposables.splice(0).reverse()) {
         if (task) {
-          task = task.then(() => runDisposable(disposable))
+          task = task.then(() => this._runInverse(disposable))
         } else {
-          const result = runDisposable(disposable)
+          const result = this._runInverse(disposable)
           if (isObject(result) && 'then' in result) {
             task = result as any
           }
@@ -513,6 +584,7 @@ export class Fiber {
       })
     }, symbols.effect, meta) as AsyncDisposable
     effectInertia.set(wrapper, () => inFlight)
+    inverseRoles.set(wrapper, 'structural')
 
     // Make the effect visible to a reentrant owner unload before execute()
     // runs any plugin code. Async teardown stays owner-visible until it
@@ -582,6 +654,12 @@ export class Fiber {
     const oldState = this.state
     this.state = callback() ?? this._getState()
     if (oldState === this.state) return
+    emitCordisPaperTrace(this.ctx, {
+      kind: 'state-changed',
+      fiber: this,
+      previous: oldState,
+      current: this.state,
+    })
     // FIXME internal/fiber-info
     this.context.emit('internal/status', this, oldState)
 
@@ -625,10 +703,20 @@ export class Fiber {
   private _setEpoch(epoch: string) {
     const oldEpoch = this._runner.epoch
     if (epoch === oldEpoch) return
+    const previous: Impl[] = Object.values(this._target)
+    const target: Dict<Impl> = epoch === INACTIVE ? Object.create(null) : { ...this._store }
+    const beginsReload = epoch !== INACTIVE && oldEpoch === INACTIVE
+    this._target = target
     this._runner.epoch = epoch
+    emitCordisPaperTrace(this.ctx, {
+      kind: 'target-changed',
+      fiber: this,
+      previous,
+      current: Object.values(target),
+    })
     if (this.inertia) return
     this._updateState(() => {
-      if (epoch !== INACTIVE && oldEpoch === INACTIVE) {
+      if (beginsReload) {
         this.inertia = this._reload()
         return FiberState.LOADING
       } else {
@@ -644,7 +732,14 @@ export class Fiber {
   }
 
   private async _reload() {
+    const previous: Impl[] = this.store ? Object.values(this.store) : []
     this.store = { ...this._store }
+    emitCordisPaperTrace(this.ctx, {
+      kind: 'committed-changed',
+      fiber: this,
+      previous,
+      current: Object.values(this.store),
+    })
     const oldEpoch = this._runner.epoch
     try {
       await Promise.resolve()
@@ -678,13 +773,20 @@ export class Fiber {
         await composeError(async (info) => {
           await Promise.resolve()
           info.error = new Error()
-          await runDisposable(dispose)
+          await this._runInverse(dispose)
         }, this._runner.getOuterStack)
       } catch (reason) {
         this.ctx.logger.error(reason)
       }
     }))
+    const previous: Impl[] = this.store ? Object.values(this.store) : []
     this.store = undefined
+    emitCordisPaperTrace(this.ctx, {
+      kind: 'committed-changed',
+      fiber: this,
+      previous,
+      current: [],
+    })
     this._updateState(() => {
       if (this._runner.epoch === INACTIVE) {
         this.inertia = undefined
