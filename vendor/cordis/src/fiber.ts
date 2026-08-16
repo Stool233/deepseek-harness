@@ -753,10 +753,8 @@ export class Fiber {
       current: Object.values(this.store),
     })
     try {
-      await Promise.resolve()
-      // A disposer queued before this checkpoint may already have invalidated
-      // the load. Do not run plugin code for a stale epoch; the state update
-      // below will drain any effects collected while the fiber was PENDING.
+      // The deferred call into _reload is the cancellation checkpoint. Do not
+      // run plugin code after a disposer has invalidated this activation.
       if (this._runner.epoch === oldEpoch) {
         this.config = this._resolveConfig(this._config)
         await this._execute(this._runner)

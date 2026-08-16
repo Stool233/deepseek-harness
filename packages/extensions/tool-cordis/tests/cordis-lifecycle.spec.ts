@@ -1,5 +1,5 @@
 import { Context, CordisError, FiberState, type Fiber } from '@deepseek-ai/cordis'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 /**
  * Direct regressions for the vendored Cordis ownership substrate used by
@@ -157,6 +157,132 @@ describe('Cordis effect ownership', () => {
 
     expect(applyCalls).toBe(1)
     expect(fiber.state).toBe(FiberState.ACTIVE)
+  })
+
+  it('keeps provider resources until asynchronous consumers finish unloading', async () => {
+    const ctx = new Context()
+    const resource = { available: true }
+    const observations: boolean[] = []
+
+    const provider = await ctx.plugin((inner) => {
+      inner.provide('resource', resource)
+      inner.effect(() => () => { resource.available = false }, 'provider-resource')
+    })
+    const consumer = await ctx.plugin({
+      inject: ['resource'],
+      apply(inner) {
+        void inner.get('resource')
+        return async () => {
+          await Promise.resolve()
+          observations.push(resource.available)
+        }
+      },
+    })
+
+    await provider.dispose()
+
+    expect(observations).toEqual([true])
+    expect(resource.available).toBe(false)
+    expect(consumer.state).toBe(FiberState.PENDING)
+  })
+
+  it('keeps retiring consumers discoverable during concurrent root disposal', async () => {
+    const ctx = new Context()
+    const resource = { available: true }
+    const observations: boolean[] = []
+    const cleanupStarted = Promise.withResolvers<undefined>()
+    const cleanupGate = Promise.withResolvers<undefined>()
+
+    await ctx.plugin((inner) => {
+      inner.provide('resource', resource)
+      inner.effect(() => () => { resource.available = false }, 'provider-resource')
+    })
+    await ctx.plugin({
+      inject: ['resource'],
+      apply(inner) {
+        void inner.get('resource')
+        return async () => {
+          cleanupStarted.resolve(undefined)
+          await cleanupGate.promise
+          observations.push(resource.available)
+        }
+      },
+    })
+
+    const disposing = ctx.fiber.dispose()
+    await cleanupStarted.promise
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(resource.available).toBe(true)
+    cleanupGate.resolve(undefined)
+    await disposing
+
+    expect(observations).toEqual([true])
+    expect(resource.available).toBe(false)
+  })
+
+  it('drains effects when disposal wins the deferred reload checkpoint', async () => {
+    const ctx = new Context()
+    const cleanup = vi.fn()
+    const apply = vi.fn()
+    const fiber = ctx.plugin(apply)
+    fiber.ctx.effect(() => cleanup, 'loading-cleanup')
+
+    await fiber.dispose()
+
+    expect(apply).not.toHaveBeenCalled()
+    expect(cleanup).toHaveBeenCalledOnce()
+    expect(fiber.getEffects()).toEqual([])
+    expect(fiber.state).toBe(FiberState.DISPOSED)
+  })
+
+  it('settles transitive service activation before an awaited provider returns', async () => {
+    const ctx = new Context()
+    const command = vi.fn()
+
+    ctx.plugin({
+      inject: ['cli'],
+      apply(inner) {
+        inner.provide('yakumo', true)
+      },
+    })
+    const commandFiber = ctx.plugin({
+      inject: ['yakumo', 'cli'],
+      apply: command,
+    })
+
+    await ctx.plugin(inner => inner.provide('cli', true))
+
+    expect(command).toHaveBeenCalledOnce()
+    expect(commandFiber.state).toBe(FiberState.ACTIVE)
+  })
+
+  it('starts independent top-level recovery concurrently in reverse order', async () => {
+    const ctx = new Context()
+    const order: string[] = []
+    let active = 0
+    let maximum = 0
+    const recover = async (label: string) => {
+      order.push(`${label}:start`)
+      maximum = Math.max(maximum, ++active)
+      await Promise.resolve()
+      order.push(`${label}:end`)
+      active--
+    }
+    const fiber = await ctx.plugin((inner) => {
+      inner.effect(() => () => recover('first'), 'first')
+      inner.effect(() => () => recover('second'), 'second')
+    })
+
+    await fiber.dispose()
+
+    expect(order).toEqual([
+      'second:start',
+      'first:start',
+      'second:end',
+      'first:end',
+    ])
+    expect(maximum).toBe(2)
   })
 })
 
