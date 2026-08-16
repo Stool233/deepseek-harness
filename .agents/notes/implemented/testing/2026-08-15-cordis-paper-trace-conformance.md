@@ -10,7 +10,7 @@ DeepSeek Harness ships a source-vendored Cordis with lifecycle hardening beyond 
 
 ## Decision
 
-The [Cordis conformance kit](https://github.com/Stool233/cordis/tree/a0f8baa9b9abfee73292c525ebcd46103b175b0d/formal) is the sole executable specification. Pull-request CI checks out that exact commit; local runs use the sibling Cordis checkout by default and may set `CORDIS_FORMAL_ROOT` to another working tree. The kit owns the TLA+ modules, theorem index, prerequisite audits, deterministic recorder, shared scenarios, mutation checks, and pinned TLA+ toolchain.
+The [Cordis conformance kit](https://github.com/Stool233/cordis/tree/23f5e7d6e4a0cf451567dad1caad7b4049df6992/formal) is the sole executable specification. Pull-request CI checks out that exact commit; local runs use the sibling Cordis checkout by default and may set `CORDIS_FORMAL_ROOT` to another working tree. The kit owns the TLA+ modules, theorem index, prerequisite audits, deterministic recorder, shared scenarios, mutation checks, and pinned TLA+ toolchain.
 
 The vendored source carries only the implementation-side observation mechanism. `vendor/cordis/src/formal-trace.ts` installs one synchronous sink on a root context and is intentionally absent from the public `@deepseek-ai/cordis` barrel. The hook observes paper-relevant lifecycle, target, committed-service, iterator, inverse, provision, retirement, and removal mutations; the kit assigns stable logical IDs and writes complete abstract post-states. `vendor/cordis/formal-observation-points.json` makes lifecycle, epoch, target, committed store, uid, registry, and service-store write coverage fail closed.
 
