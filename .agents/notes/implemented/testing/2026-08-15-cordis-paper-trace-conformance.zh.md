@@ -10,7 +10,7 @@ DeepSeek Harness 交付带有生命周期加固的源码 vendored Cordis，这�
 
 ## 决策
 
-[Cordis 一致性验证工具包](https://github.com/Stool233/cordis/tree/112f71c2ecba8dc3b39d7e3f4c25834f0ef9337b/formal)是唯一的可执行规格。PR（Pull Request）CI 检出该精确提交；本地运行默认使用相邻的 Cordis checkout，也可以用 `CORDIS_FORMAL_ROOT` 指向另一 worktree。工具包拥有 TLA+ 模块、定理索引、前提审计、确定性 recorder、共享场景、mutation checks 和固定的 TLA+ 工具链。
+[Cordis 一致性验证工具包](https://github.com/Stool233/cordis/tree/d06ee04a4c1c0cdd9605cd3d77521f90220d098b/formal)是唯一的可执行规格。PR（Pull Request）CI 检出该精确提交；本地运行默认使用相邻的 Cordis checkout，也可以用 `CORDIS_FORMAL_ROOT` 指向另一 worktree。工具包拥有 TLA+ 模块、定理索引、前提审计、确定性 recorder、共享场景、mutation checks 和固定的 TLA+ 工具链。
 
 vendored 源码只携带实现侧观察机制。`vendor/cordis/src/formal-trace.ts` 在根上下文安装一个同步 sink，并有意不进入公开的 `@deepseek-ai/cordis` barrel。该 hook 观察与论文有关的生命周期、target、committed service、iterator、inverse、provision、retirement 和 removal 变更；工具包分配稳定逻辑 ID，并写出完整的抽象后状态。`vendor/cordis/formal-observation-points.json` 对生命周期、epoch、target、committed store、uid、registry 和 service store 的写入覆盖执行快速失败。
 
