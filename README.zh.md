@@ -2,6 +2,8 @@
 
 [English](README.md) | 中文
 
+这是 Stool233 的研究 fork。阅读 Cordis 生命周期研究，请从 [fork 指南](docs/cordis-study.zh.md)开始，了解分支选择、迁移后的修复和跨仓证据入口。下文保留产品介绍与运行方式。
+
 DeepSeek Harness（`dsh`）是由 [DeepSeek AI](https://deepseek.com) 开发的开源 agent harness（智能体框架）。
 
 它构建于**一切皆插件**的架构之上，由 [Cordis](https://github.com/cordiverse/cordis) 驱动，其设计参见论文 [_A Programming Paradigm for Spatiotemporal Composability_](https://arxiv.org/abs/2608.25512)。
