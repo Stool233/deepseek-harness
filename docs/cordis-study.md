@@ -1,59 +1,39 @@
-# Cordis study in this fork
+# Cordis paper and implementation in this fork
 
 English | [中文](cordis-study.zh.md)
 
 ## Summary
 
-Use this fork to inspect how Cordis lifecycle fixes behave inside DeepSeek Harness. The [study portal](https://github.com/Stool233/cordis-formal-study) explains the findings and reproduces the shared models and traces. This page is a branch and verification reference for Harness readers.
+Use the [study portal](https://github.com/Stool233/cordis-formal-study) to read the current Cordis paper and check selected lifecycle behavior in this fork. This page locates the Harness implementation and its verification scope.
 
 ## Table of Contents
 
-- [Choose a branch](#choose-a-branch)
-- [Understand the fix](#understand-the-fix)
-- [Verify the implementation](#verify-the-implementation)
-- [Further exploration](#further-exploration)
+- [Read the paper](#read-the-paper)
+- [Locate the implementation](#locate-the-implementation)
+- [Understand the verification](#understand-the-verification)
+- [Further Exploration](#further-exploration)
 - [Dev Note](#dev-note)
 
-## Choose a branch
+## Read the paper
 
-Select the branch by the question you want to answer. The portal records exact revisions; moving branch names do not identify evidence.
+The source is [A Programming Paradigm for Spatiotemporal Composability, arXiv v1](https://arxiv.org/abs/2608.25512v1). The [paper guide](https://github.com/Stool233/cordis-formal-study/blob/main/docs/paper.md) explains dependency cleanup order, retirement, and provider identity.
 
-| Branch | Purpose |
-| --- | --- |
-| `master` | Official Harness code with this fork's documentation. |
-| `codex/upstream-alignment-2026-09-09` | Lifecycle fixes adapted to upstream `5dda764`, with ordinary regressions. |
-| `research/paper-trace-baseline` | Original experiment: reproduce the exact known mismatches. |
-| `research/paper-conformance` | Original experiment: test the corrected implementation against the shared Cordis kit. |
-| `fix/paper-conformance` | Original experiment: review the historical fix without trace instrumentation. |
+## Locate the implementation
 
-The [alignment report](https://github.com/Stool233/cordis-formal-study/blob/main/docs/upstream-alignment.md) owns the current migration results. The historical branches remain pinned snapshots of a separate experiment.
+The study selects [the fixed Harness implementation at fdcd1ce](https://github.com/Stool233/deepseek-harness/tree/fdcd1ce36a296ab2288bf407fccba4c8fa634963/vendor/cordis/src), based on official Harness `5dda764`. Its branch is `codex/upstream-alignment-2026-09-09`; the portal's [current lock](https://github.com/Stool233/cordis-formal-study/blob/main/current.lock.json) records the full commit and source trees.
 
-## Understand the fix
+The default `master` branch provides official source and this guide. The checked fork keeps consumers discoverable during cleanup, waits for bound dependents before provider recovery, and preserves provider identity in service bindings. The [implementation reference](https://github.com/Stool233/cordis-formal-study/blob/main/docs/implementation.md) owns the exact source selection.
 
-A consumer can need its provider while asynchronous cleanup is running. On the migration branch, the runtime retains retiring consumers until cleanup settles and waits for notified dependents before recovering provider effects. It also orders lifecycle publication before dependency-epoch changes and uses one deferred activation checkpoint.
+## Understand the verification
 
-Harness retains its existing reentrant-disposal, pending-effect, asynchronous-cleanup, and lazy-config behavior. The patch is recorded in the [vendored modification log](../vendor/README.md); ordinary regressions live in [cordis-lifecycle.spec.ts](../packages/extensions/tool-cordis/tests/cordis-lifecycle.spec.ts). Open code links on the migration branch to see the fixes.
+The portal exports the selected Cordis and vendored Cosmokit source from the same Harness commit. It runs the same three direct behavior checks against this implementation and the Cordis fork, without changing runtime source or adding trace instrumentation.
 
-Session persistence uses per-session handles. Their close operation drains buffered writes before releasing ownership, and backend teardown closes all tracked handles. The migration uses that implementation directly; it does not restore the historical coordinator. The owning references are [Session persistence](../packages/session/session-persistence/README.md) and [JSONL persistence](../packages/session/session-persistence-jsonl/README.md).
+The [verification guide](https://github.com/Stool233/cordis-formal-study/blob/main/docs/verification.md) defines the assertions and evidence. The [reproduction guide](https://github.com/Stool233/cordis-formal-study/blob/main/docs/reproduce.md) owns the commands. These results cover the selected lifecycle scenarios; they do not establish the whole Harness application's behavior or prove the complete paper calculus.
 
-## Verify the implementation
+## Further Exploration
 
-Use Node.js 24 and the pnpm version in [package.json](../package.json). In an installed migration checkout, these commands exercise lifecycle behavior and the persistence path:
-
-```sh
-corepack pnpm run build:native-system
-corepack pnpm exec vitest run packages/extensions/tool-cordis/tests/cordis-lifecycle.spec.ts packages/session/session-persistence/tests/storage-contract.spec.ts packages/session/session-persistence-jsonl/tests/jsonl.spec.ts packages/boot/app-boot/tests/config-reload.spec.ts packages/boot/app-boot/tests/hmr-config.spec.ts packages/core/agent-loop/tests/scope-lifecycle.spec.ts
-corepack pnpm run build
-```
-
-The native build prepares the local POSIX lock addon used by JSONL tests. These tests require no model API key. [The portal reproduction guide](https://github.com/Stool233/cordis-formal-study/blob/main/docs/reproduce.md) owns the formal procedure: instrumented copies run the shared core scenarios plus Harness-specific cleanup and offline AgentLoop scenarios.
-
-Ordinary test success alone is not formal conformance. Formal results use the historical paper-derived kit and explicitly record the current TLC hash; they do not establish every theorem in the newer arXiv paper or arbitrary plugin behavior.
-
-## Further exploration
-
-Read the [study results](https://github.com/Stool233/cordis-formal-study/blob/main/docs/results.md) for counterexamples, the [Cordis primer](cordis-primer.md) for framework concepts, or [Harness architecture](architecture.md) for application composition.
+Read the [Cordis primer](cordis-primer.md) for framework concepts and [Harness architecture](architecture.md) for application composition. The portal keeps earlier study material in a separate [archive](https://github.com/Stool233/cordis-formal-study/blob/main/archive/README.md).
 
 ## Dev Note
 
-None.
+The [scope decision](../.agents/notes/implemented/process/2026-09-10-current-cordis-study-scope.md) records documentation ownership and the verification boundary.

@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-这是 Stool233 的研究 fork。阅读 Cordis 生命周期研究，请从 [fork 指南](docs/cordis-study.zh.md)开始，了解分支选择、迁移后的修复和跨仓证据入口。下文保留产品介绍与运行方式。
+这是 Stool233 的研究 fork。[Cordis 指南](docs/cordis-study.zh.md)提供当前论文、选定实现和已确认生命周期检查的入口。下文为产品介绍与运行方式。
 
 DeepSeek Harness（`dsh`）是由 [DeepSeek AI](https://deepseek.com) 开发的开源 agent harness（智能体框架）。
 

@@ -1,59 +1,39 @@
-# 本 fork 中的 Cordis 研究
+# 本 fork 中的 Cordis 论文与实现
 
 [English](cordis-study.md) | 中文
 
 ## 概述
 
-本 fork 用于查看 Cordis 生命周期修复在 DeepSeek Harness 中的表现。[研究门户](https://github.com/Stool233/cordis-formal-study)解释发现，并复现共用的模型与轨迹。本文为 Harness 读者提供分支选择和验证参考。
+通过[研究门户](https://github.com/Stool233/cordis-formal-study)阅读当前 Cordis 论文，并检查本 fork 中选定的生命周期行为。本页帮助读者定位 Harness 实现及其验证范围。
 
 ## 目录
 
-- [选择分支](#choose-a-branch)
-- [理解修复](#understand-the-fix)
-- [验证实现](#verify-the-implementation)
+- [阅读论文](#read-the-paper)
+- [定位实现](#locate-the-implementation)
+- [理解验证](#understand-the-verification)
 - [继续阅读](#further-exploration)
 - [开发备注](#dev-note)
 
-## 选择分支 <a id="choose-a-branch"></a>
+## 阅读论文 <a id="read-the-paper"></a>
 
-根据想回答的问题选择分支。门户记录精确版本；会移动的分支名不能标识证据。
+阅读来源是 [A Programming Paradigm for Spatiotemporal Composability，arXiv v1](https://arxiv.org/abs/2608.25512v1)。[论文指南](https://github.com/Stool233/cordis-formal-study/blob/main/docs/paper.md)解释依赖清理顺序、退休和提供方身份。
 
-| 分支 | 用途 |
-| --- | --- |
-| `master` | 官方 Harness 代码与本 fork 的文档。 |
-| `codex/upstream-alignment-2026-09-09` | 适配上游 `5dda764` 的生命周期修复与普通回归。 |
-| `research/paper-trace-baseline` | 原始实验：精确复现已知不一致。 |
-| `research/paper-conformance` | 原始实验：使用共用的 Cordis kit 检查修复后的实现。 |
-| `fix/paper-conformance` | 原始实验：查看不含轨迹插桩的历史修复。 |
+## 定位实现 <a id="locate-the-implementation"></a>
 
-[对齐报告](https://github.com/Stool233/cordis-formal-study/blob/main/docs/upstream-alignment.md)负责本次迁移结果。历史分支继续作为另一组实验的固定快照。
+研究选定 [fdcd1ce 中包含修复的 Harness 实现](https://github.com/Stool233/deepseek-harness/tree/fdcd1ce36a296ab2288bf407fccba4c8fa634963/vendor/cordis/src)，基于官方 Harness `5dda764`。分支为 `codex/upstream-alignment-2026-09-09`；门户的[当前版本锁](https://github.com/Stool233/cordis-formal-study/blob/main/current.lock.json)记录完整提交和源码 tree。
 
-## 理解修复 <a id="understand-the-fix"></a>
+默认 `master` 分支提供官方源码与本指南。被检查的 fork 在清理期间保留消费方的可发现性，在提供方恢复前等待已绑定的依赖方，并在服务绑定中保留提供方身份。[实现参考](https://github.com/Stool233/cordis-formal-study/blob/main/docs/implementation.md)负责精确源码选择。
 
-Consumer 的异步清理可能仍需使用 provider。迁移分支将退休中的 consumer 保留到清理结束，并等待已通知的 dependent，再恢复 provider effect。它还会先发布生命周期状态，再改变依赖 epoch，并使用一个延迟激活检查点。
+## 理解验证 <a id="understand-the-verification"></a>
 
-Harness 保留已有的重入 dispose、pending effect、异步 cleanup 与延迟 config 解析行为。补丁记录在 [vendored 修改清单](../vendor/README.md)，普通回归位于 [cordis-lifecycle.spec.ts](../packages/extensions/tool-cordis/tests/cordis-lifecycle.spec.ts)。请在迁移分支打开代码链接查看修复。
+门户从同一个 Harness 提交中导出选定的 Cordis 与 vendored Cosmokit 源码。它对这份实现和 Cordis fork 执行相同的三项直接行为检查，不修改运行时源码或添加轨迹插桩。
 
-Session persistence 使用每个 session 独立的 handle。其 close 操作先排空写入缓冲，再释放所有权；backend teardown 关闭所有已登记的 handle。迁移直接使用这一实现，不恢复历史 coordinator。详见 [Session persistence](../packages/session/session-persistence/README.zh.md) 与 [JSONL persistence](../packages/session/session-persistence-jsonl/README.zh.md)。
-
-## 验证实现 <a id="verify-the-implementation"></a>
-
-使用 Node.js 24，以及 [package.json](../package.json) 指定的 pnpm 版本。在已安装依赖的迁移 checkout 中，以下命令检查生命周期与 persistence 路径：
-
-```sh
-corepack pnpm run build:native-system
-corepack pnpm exec vitest run packages/extensions/tool-cordis/tests/cordis-lifecycle.spec.ts packages/session/session-persistence/tests/storage-contract.spec.ts packages/session/session-persistence-jsonl/tests/jsonl.spec.ts packages/boot/app-boot/tests/config-reload.spec.ts packages/boot/app-boot/tests/hmr-config.spec.ts packages/core/agent-loop/tests/scope-lifecycle.spec.ts
-corepack pnpm run build
-```
-
-原生构建准备 JSONL 测试所需的本机 POSIX 锁模块。这些测试不需要模型 API key。[门户复现指南](https://github.com/Stool233/cordis-formal-study/blob/main/docs/reproduce.md)负责形式化流程：插桩副本运行共用核心场景，以及 Harness 的 cleanup 与离线 AgentLoop 场景。
-
-仅普通测试通过不能推出形式化一致性。形式化结果使用历史论文导出的 kit，并显式记录当前 TLC 哈希；它们不能证明新版 arXiv 论文的全部定理或任意插件行为。
+[验证指南](https://github.com/Stool233/cordis-formal-study/blob/main/docs/verification.md)定义断言与证据，[复现指南](https://github.com/Stool233/cordis-formal-study/blob/main/docs/reproduce.md)负责命令。这些结果覆盖选定的生命周期场景，不代表整个 Harness 应用的行为已获验证，也不是完整论文演算的证明。
 
 ## 继续阅读 <a id="further-exploration"></a>
 
-查看[研究结果](https://github.com/Stool233/cordis-formal-study/blob/main/docs/results.md)了解反例，阅读 [Cordis primer](cordis-primer.zh.md)学习框架概念，或从 [Harness 架构](architecture.zh.md)了解应用装配。
+阅读 [Cordis primer](cordis-primer.zh.md)了解框架概念，阅读 [Harness 架构](architecture.zh.md)了解应用装配。此前的研究材料保存在门户独立的[归档](https://github.com/Stool233/cordis-formal-study/blob/main/archive/README.md)中。
 
 ## 开发备注 <a id="dev-note"></a>
 
-无。
+[范围决策](../.agents/notes/implemented/process/2026-09-10-current-cordis-study-scope.zh.md)记录文档归属和验证边界。
