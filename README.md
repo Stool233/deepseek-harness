@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-This is Stool233’s research fork. The [Cordis guide](docs/cordis-study.md) links the current paper, selected implementation, and confirmed lifecycle checks. The product introduction and run instructions follow below.
+This is Stool233’s research fork. The [Cordis guide](docs/cordis-study.md) connects our TLC-discovered lifecycle defects, fixes, current paper, and verification evidence. The product introduction and run instructions follow below.
 
 DeepSeek Harness (`dsh`) is an open-source agent harness developed by [DeepSeek AI](https://deepseek.com).
 

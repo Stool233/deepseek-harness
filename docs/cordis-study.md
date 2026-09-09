@@ -1,39 +1,39 @@
-# Cordis paper and implementation in this fork
+# Cordis TLC contributions in this fork
 
 English | [中文](cordis-study.zh.md)
 
 ## Summary
 
-Use the [study portal](https://github.com/Stool233/cordis-formal-study) to read the current Cordis paper and check selected lifecycle behavior in this fork. This page locates the Harness implementation and its verification scope.
+This fork carries repairs for lifecycle defects found through the [Cordis study's TLC workflow](https://github.com/Stool233/cordis-formal-study/blob/main/docs/contributions.md). The portal owns the counterexamples, selected source, reproduction commands, and evidence limits.
 
 ## Table of Contents
 
-- [Read the paper](#read-the-paper)
+- [Understand the contribution](#understand-the-contribution)
 - [Locate the implementation](#locate-the-implementation)
-- [Understand the verification](#understand-the-verification)
+- [Follow the verification](#follow-the-verification)
 - [Further Exploration](#further-exploration)
 - [Dev Note](#dev-note)
 
-## Read the paper
+## Understand the contribution
 
-The source is [A Programming Paradigm for Spatiotemporal Composability, arXiv v1](https://arxiv.org/abs/2608.25512v1). The [paper guide](https://github.com/Stool233/cordis-formal-study/blob/main/docs/paper.md) explains dependency cleanup order, retirement, and provider identity.
+The study establishes two related defects: provider recovery can start before dependent cleanup finishes, and retirement can hide an unloading consumer from dependency discovery. The [contribution guide](https://github.com/Stool233/cordis-formal-study/blob/main/docs/contributions.md) connects the observed events to the fixes. The [paper guide](https://github.com/Stool233/cordis-formal-study/blob/main/docs/paper.md) explains their relationship to the current paper's cleanup rules.
 
 ## Locate the implementation
 
-The study selects [the fixed Harness implementation at fdcd1ce](https://github.com/Stool233/deepseek-harness/tree/fdcd1ce36a296ab2288bf407fccba4c8fa634963/vendor/cordis/src), based on official Harness `5dda764`. Its branch is `codex/upstream-alignment-2026-09-09`; the portal's [current lock](https://github.com/Stool233/cordis-formal-study/blob/main/current.lock.json) records the full commit and source trees.
+The selected [Harness Cordis implementation](https://github.com/Stool233/deepseek-harness/tree/fdcd1ce36a296ab2288bf407fccba4c8fa634963/vendor/cordis/src) is on `codex/upstream-alignment-2026-09-09`. It retains consumer discoverability until cleanup settles and waits for notified dependents before provider recovery. The portal's [current lock](https://github.com/Stool233/cordis-formal-study/blob/main/current.lock.json) and [implementation reference](https://github.com/Stool233/cordis-formal-study/blob/main/docs/implementation.md) own the exact source selection and official ancestry.
 
-The default `master` branch provides official source and this guide. The checked fork keeps consumers discoverable during cleanup, waits for bound dependents before provider recovery, and preserves provider identity in service bindings. The [implementation reference](https://github.com/Stool233/cordis-formal-study/blob/main/docs/implementation.md) owns the exact source selection.
+The default `master` branch provides official source and this guide. The selected research source contains the repairs; its evidence does not cover the whole Harness application.
 
-## Understand the verification
+## Follow the verification
 
-The portal exports the selected Cordis and vendored Cosmokit source from the same Harness commit. It runs the same three direct behavior checks against this implementation and the Cordis fork, without changing runtime source or adding trace instrumentation.
+The [verification guide](https://github.com/Stool233/cordis-formal-study/blob/main/docs/verification.md) distinguishes TLC replay of recorded observations from fresh trace generation on the fixed source. The evidence connects rejected upstream traces, accepted fixed traces, and negative controls. Uninstrumented resource and registry regressions supplement that chain; passing tests and synthetic controls do not count as new defect discoveries.
 
-The [verification guide](https://github.com/Stool233/cordis-formal-study/blob/main/docs/verification.md) defines the assertions and evidence. The [reproduction guide](https://github.com/Stool233/cordis-formal-study/blob/main/docs/reproduce.md) owns the commands. These results cover the selected lifecycle scenarios; they do not establish the whole Harness application's behavior or prove the complete paper calculus.
+Use [Reproduction](https://github.com/Stool233/cordis-formal-study/blob/main/docs/reproduce.md) for the commands and bundled toolchain. The evidence establishes the selected implementation problems and their repairs under declared dependencies; it does not prove the complete paper calculus. Provider identity is supporting regression coverage, not an additional claimed discovery.
 
 ## Further Exploration
 
-Read the [Cordis primer](cordis-primer.md) for framework concepts and [Harness architecture](architecture.md) for application composition. The portal keeps earlier study material in a separate [archive](https://github.com/Stool233/cordis-formal-study/blob/main/archive/README.md).
+Read the [Cordis primer](cordis-primer.md) for framework concepts and [Harness architecture](architecture.md) for application composition. Broader historical claims and experiment history live in the portal's [archive](https://github.com/Stool233/cordis-formal-study/blob/main/archive/README.md); confirmed TLC contributions remain in the main reading path.
 
 ## Dev Note
 
-The [scope decision](../.agents/notes/implemented/process/2026-09-10-current-cordis-study-scope.md) records documentation ownership and the verification boundary.
+The [contribution evidence decision](../.agents/notes/implemented/process/2026-09-10-cordis-tlc-contribution-evidence.md) records documentation ownership and the verification boundary.
