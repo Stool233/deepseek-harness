@@ -2,17 +2,17 @@
 
 English | [中文](README.zh.md)
 
-This is Stool233’s research fork. The [Cordis guide](docs/cordis-study.md) connects our TLC-discovered lifecycle defects, fixes, current paper, and verification evidence. The product introduction and run instructions follow below.
+This is Stool233’s research fork. The [Cordis guide](docs/cordis-study.md) describes the lifecycle defects we found through TLC, their fixes, and the verification results. Product and run instructions follow below.
 
-DeepSeek Harness (`dsh`) is an open-source agent harness developed by [DeepSeek AI](https://deepseek.com).
+DeepSeek Harness (`dsh`) is an open source agent harness developed by [DeepSeek AI](https://deepseek.com).
 
-It is built on an **everything-is-a-plugin** architecture and powered by [Cordis](https://github.com/cordiverse/cordis), whose design is described in [_A Programming Paradigm for Spatiotemporal Composability_](https://arxiv.org/abs/2608.25512).
+The architecture uses plugins for every component and is powered by [Cordis](https://github.com/cordiverse/cordis), whose design is described in [_A Programming Paradigm for Spatiotemporal Composability_](https://arxiv.org/abs/2608.25512).
 
 Documentation: [https://deepseek-harness.github.io/deepseek-harness/](https://deepseek-harness.github.io/deepseek-harness/)
 
 ## Developer preview
 
-DeepSeek Harness is in _developer preview_ and iterating rapidly. **THERE WILL BE COMPATIBILITY-BREAKING CHANGES.**
+DeepSeek Harness is in developer preview. Future changes will break compatibility.
 
 Review the [safety notice](SAFETY.md) before running the project.
 
@@ -62,4 +62,4 @@ For agents, follow [AGENTS.md](AGENTS.md).
 
 [MIT](LICENSE)
 
-Third-party dependencies and their licenses are disclosed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+External dependencies and their licenses are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

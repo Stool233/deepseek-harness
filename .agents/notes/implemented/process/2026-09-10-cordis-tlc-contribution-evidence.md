@@ -6,26 +6,26 @@ English | [中文](2026-09-10-cordis-tlc-contribution-evidence.zh.md)
 
 ## Problem
 
-Readers need to distinguish an actual defect discovered through TLC from an implementation test that happens to pass. A reading path centered only on passing checks hides the contribution; historical model names can also overstate alignment with the current paper.
+Readers need the observed failure, its TLC counterexample, the repair, and verification of that repair to assess a contribution. Historical model names and passing test totals can obscure which defect the study established.
 
 ## Decision
 
-The [fork guide](../../../../docs/cordis-study.md) leads with TLC-discovered cleanup defects and their fixes. The external study portal owns the exact source lock, captured upstream and fixed traces, models, pinned tools, counterexamples, executable checks, generated reports, and archive. The guide links to that owner rather than duplicating changing counts.
+The [fork guide](../../../../docs/cordis-study.md) starts with the cleanup defects found through TLC and their fixes. The study repository contains the source lock, traces before and after the fixes, models, tool files, counterexamples, executable checks, reports, and archive. The guide links to those records for versions and counts.
 
-Confirmed contribution means an observed implementation problem connected to a TLC counterexample, a repair, and verification of that repair. Trace replay and fresh source execution have distinct evidence descriptions. Passing behavior tests and artificial negative controls support that chain but do not independently count as discovered bugs. Provider identity remains supporting coverage.
+A confirmed contribution requires an observed implementation problem, a TLC counterexample, a repair, and verification of that repair. The verification guide states which commands replay captured observations and which execute source to generate traces. Behavior tests check the implementation directly; synthetic controls check the model's ability to reject a defect. Provider identity has a supporting regression test.
 
-The default branch supplies official source and the reading entry; the portal selects the research implementation. The current paper supplies the cleanup interpretation. Application-wide behavior, arbitrary external effects, and a proof of the complete calculus remain outside the selected evidence.
+The default branch provides official source and the guide. The study repository selects the research implementation and relates the cleanup rules to the current paper. Its results cover the recorded scenarios and declared bindings. Claims about the whole application, arbitrary external effects, or the complete calculus require additional evidence.
 
 ## Alternatives considered
 
-**Center the guide on passing behavior checks.** This gives a small current-state check set but omits how TLC exposed the defects and why the fixes are contributions. Resource, registry, and identity regressions remain supporting evidence.
+**Organize the guide around passing behavior tests.** Test results describe how the implementation behaves in given scenarios. Assessing the contribution also requires the failing traces and the reason for each repair.
 
-**Keep the historical branch matrix in the main guide.** This makes newcomers learn the experiment history before finding the selected source. The archive retains that history and its qualifications while confirmed defect evidence stays in the main path.
+**Include the historical branch matrix in the main guide.** This requires newcomers to learn the experiment history before locating the source. The archive provides that history and its review qualifications for readers tracing earlier work.
 
-**Describe passing model runs as current paper verification.** The frozen models do not encode the full current calculus. The guide states the concrete implementation scope and links the paper interpretation separately.
+**Present passing model runs as verification of the current paper.** Each model result applies to the checked definitions and traces. The guide states that scope and links to the correspondence with paper rules.
 
 ## Consequences
 
-Readers can follow one source and evidence owner from the observed problem to its repair. The fork guide does not publish historical mismatch totals as independent discoveries. This documentation decision does not modify runtime code or historical research commits.
+Readers can inspect the observed defect, source repair, and verification report through the study repository. The two defects define the contribution count; scenarios and mutations provide evidence for them.
 
-English and Chinese guides, root entries, and this note are maintained through translation pairing, documentation checks, and lint. A scoped active-note audit found the current-study-scope note fully superseded; this note consolidates its source distinction, ownership rationale, archive alternative, calculus and application coverage gaps, and verification obligations. The superseded triplet is removed and its inbound links point here.
+English and Chinese guides, root entries, and this note use translation pairing, documentation checks, and lint. This note consolidates the superseded `current-study-scope` note's source selection, documentation responsibilities, archive rationale, coverage limits, and verification requirements. Links to that decision point here.

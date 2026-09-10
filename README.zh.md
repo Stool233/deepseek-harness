@@ -2,17 +2,17 @@
 
 [English](README.md) | 中文
 
-这是 Stool233 的研究 fork。[Cordis 指南](docs/cordis-study.zh.md)串起我们通过 TLC 发现的生命周期缺陷、修复、当前论文和验证证据。产品介绍与运行说明见下文。
+这是 Stool233 的研究 fork。[Cordis 指南](docs/cordis-study.zh.md)介绍我们通过 TLC 发现的生命周期缺陷、修复和验证结果。下文提供产品介绍与运行说明。
 
 DeepSeek Harness（`dsh`）是由 [DeepSeek AI](https://deepseek.com) 开发的开源 agent harness（智能体框架）。
 
-它构建于**一切皆插件**的架构之上，由 [Cordis](https://github.com/cordiverse/cordis) 驱动，其设计参见论文 [_A Programming Paradigm for Spatiotemporal Composability_](https://arxiv.org/abs/2608.25512)。
+系统将各组件实现为插件，由 [Cordis](https://github.com/cordiverse/cordis) 驱动，其设计参见论文 [_A Programming Paradigm for Spatiotemporal Composability_](https://arxiv.org/abs/2608.25512)。
 
 文档：[https://deepseek-harness.github.io/deepseek-harness/](https://deepseek-harness.github.io/deepseek-harness/)
 
 ## 开发者预览
 
-DeepSeek Harness 处于 _开发者预览_ 阶段，正在快速迭代。**未来将出现破坏兼容性的变更。**
+DeepSeek Harness 处于开发者预览阶段。后续变更将破坏兼容性。
 
 运行本项目前，请阅读[安全说明](SAFETY.zh.md)。
 
@@ -83,4 +83,4 @@ pnpm dsh web
 
 [MIT](LICENSE)
 
-第三方依赖及其许可证见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+外部依赖及其许可证见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
