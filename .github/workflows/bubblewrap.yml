@@ -1,0 +1,30 @@
+name: CI bubblewrap preparation
+
+on:
+  pull_request:
+    paths:
+      - scripts/prepare-ci-bubblewrap.sh
+      - scripts/tests/prepare-ci-bubblewrap.test.mjs
+      - .github/workflows/bubblewrap.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Preparation failure cases
+        run: node --test scripts/tests/prepare-ci-bubblewrap.test.mjs
+      - name: Prepare bubblewrap
+        run: bash scripts/prepare-ci-bubblewrap.sh
+      - name: Verify exported sandbox
+        run: bwrap --ro-bind / / --dev /dev --unshare-pid --proc /proc --die-with-parent -- true
