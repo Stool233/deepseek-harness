@@ -33,7 +33,7 @@ if [[ ${#archives[@]} -ne 1 || ! -f "${archives[0]}" ]]; then
   exit 1
 fi
 archive="${archives[0]}"
-dpkg-deb --show "$archive" '${Package} ${Version} ${Architecture}\n'
+dpkg-deb --show --showformat='${Package} ${Version} ${Architecture}\n' "$archive"
 sha256sum "$archive"
 mkdir -p "$root"
 dpkg-deb --extract "$archive" "$root"
